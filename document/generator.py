@@ -24,67 +24,43 @@ class DocumentGenerator:
         genai.configure(api_key=self.gemini_api_key)
         return genai.GenerativeModel('gemini-pro'), genai.GenerativeModel('gemini-pro-vision')
 
-    def generate_plan(self):
 
-        space_prompts = [
-            {
-                "mission_name": "Lunar mining",
-                "objectives": "Land and start minning the key resources (Helium-3) and Earth Rare Resources on moon, with detecting water ice and mapping geological structures"
-            }
-          # {
-          #   "mission_name": "Lunar AI Research Assistant",
-          #   "objectives": "Deploy an AI-powered rover on the Moon to autonomously analyze soil composition, detect water ice, and map geological structures."
-          # },
-          #{
-          #   "mission_name": "Autonomous Space Debris Removal",
-          #   "objectives": "Develop an AI-controlled satellite capable of identifying, capturing, and safely disposing of space debris to reduce orbital clutter."
-          #},
-          # {
-          #   "mission_name": "Exoplanet Data Analysis AI",
-          #   "objectives": "Use AI to process and analyze vast amounts of data from space telescopes, identifying Earth-like planets and potential biosignatures."
-          # },
-          # {
-          #   "mission_name": "AI-Powered Martian Colony Optimization",
-          #   "objectives": "Implement AI systems to optimize resource distribution, habitat sustainability, and communication for future Mars colonists."
-          # },
-          #{
-          #   "mission_name": "Deep Space AI Navigation System",
-          #   "objectives": "Design an AI-driven navigation system that enables autonomous spacecraft travel between planets, reducing reliance on ground-based mission control."
-          #}
-        ]
+    def generate_strategic_prompt(self, prompts):
+
+        # This prompt is different per different products like:
+        # Space Hackhathon -> Different
+        # Authentic Scope -> Different
+        # Quality Care -> Different
+
+        for prompt in prompts:
+            strategic_overview_prompt = f"""
+                    Generate a high-level overview and strategic preplan for the space mission with the following details:
+                    Mission Name: {prompt.mission_name}
+                    Objectives: {prompt.objectives}
+    
+                    The overview should provide a cohesive, strategic narrative that includes:
+                    - A summary of the mission's overarching goals and purpose.
+                    - An explanation of the major challenges the mission seeks to address and the broader vision it supports.
+                    - Insight into the key strategies and innovations being employed to achieve success.
+                    - A bird's-eye view of the mission's scope, touching on the scientific, technological, or societal impact it aims to have.
+                    - A discussion on how the mission contributes to humanity's progress in space exploration, highlighting the mission’s long-term importance and strategic value.
+    
+                    The tone should be visionary, emphasizing the mission's impact, importance, and broader goals.
+                """
+
+            prompt['strategic_prompt'] = strategic_overview_prompt
+
+        return prompts
+
+    def generate_plan(self, doc_prompts):
 
         text_model, image_model = self.configure_model()
+        for prompt in doc_prompts:
 
-        for prompt in space_prompts:
-
-            # 07.02.2025 -> It may be some kind of title of generated raport
             mission_name = prompt["mission_name"]
             objectives = prompt["objectives"]
 
-            # This prompt is different per different products like:
-
-            # Space Hackhathon -> Different
-            # Authentic Scope -> Different
-            # Quality Care -> Different
-
-
-            # Step 1: Generate Strategic Overview
-            prompt = f"""
-                Generate a high-level overview and strategic preplan for the space mission with the following details:
-                Mission Name: {mission_name}
-                Objectives: {objectives}
-
-                The overview should provide a cohesive, strategic narrative that includes:
-                - A summary of the mission's overarching goals and purpose.
-                - An explanation of the major challenges the mission seeks to address and the broader vision it supports.
-                - Insight into the key strategies and innovations being employed to achieve success.
-                - A bird's-eye view of the mission's scope, touching on the scientific, technological, or societal impact it aims to have.
-                - A discussion on how the mission contributes to humanity's progress in space exploration, highlighting the mission’s long-term importance and strategic value.
-
-                The tone should be visionary, emphasizing the mission's impact, importance, and broader goals.
-            """
-
-            response = text_model.generate_content(prompt)
+            response = text_model.generate_content(prompt["strategic_prompt"])
             strategic_overview = response.text
 
             print(f"Overview: {strategic_overview}")
@@ -205,6 +181,7 @@ class DocumentGenerator:
         return objectives_list
 
     import re
+    
 
     def generate_resources(self, mission_name, phase, objective, text_model):
         prompt = f"""
