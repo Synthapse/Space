@@ -67,7 +67,8 @@ class SummaryDocumentGenerator:
             }
 
             # Generate final summary PDF
-            self.generate_pdf(title, summary_content)
+            doc = self.generate_pdf(title, summary_content)
+            return doc
 
     def extract_key_themes(self, title, summary_overview, text_model):
         prompt = f"""

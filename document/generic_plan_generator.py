@@ -74,7 +74,8 @@ class GenericDocumentGenerator:
                 "mission_overview": strategic_overview,
                 "phases": phases
             }
-            self.generate_pdf(title, plan_content)
+            doc = self.generate_pdf(title, plan_content)
+            return doc
 
     def generate_phases(self, title, strategic_overview, text_model):
         prompt = f"""
