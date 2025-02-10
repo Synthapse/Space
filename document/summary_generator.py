@@ -5,6 +5,7 @@ import uuid
 import time
 import os
 import re
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
@@ -24,282 +25,165 @@ class SummaryDocumentGenerator:
         genai.configure(api_key=self.gemini_api_key)
         return genai.GenerativeModel('gemini-pro'), genai.GenerativeModel('gemini-pro-vision')
 
-
-    def generate_strategic_prompt(self, prompts):
-
-        # This prompt is different per different products like:
-        # Space Hackhathon -> Different
-        # Authentic Scope -> Different
-        # Quality Care -> Different
-
-        for prompt in prompts:
-            strategic_overview_prompt = f"""
-                    Generate a high-level overview and strategic preplan for the space mission with the following details:
-                    Mission Name: {prompt['mission_name']}
-                    Objectives: {prompt['objectives']}
-    
-                    The overview should provide a cohesive, strategic narrative that includes:
-                    - A summary of the mission's overarching goals and purpose.
-                    - An explanation of the major challenges the mission seeks to address and the broader vision it supports.
-                    - Insight into the key strategies and innovations being employed to achieve success.
-                    - A bird's-eye view of the mission's scope, touching on the scientific, technological, or societal impact it aims to have.
-                    - A discussion on how the mission contributes to humanity's progress in space exploration, highlighting the mission’s long-term importance and strategic value.
-    
-                    The tone should be visionary, emphasizing the mission's impact, importance, and broader goals.
-                """
-
-            prompt['strategic_prompt'] = strategic_overview_prompt
-
-        return prompts
-
     def generate_summary(self, doc_prompts):
-
         text_model, image_model = self.configure_model()
+
         for prompt in doc_prompts:
+            title = prompt["title"]
 
-            mission_name = prompt["mission_name"]
-            objectives = prompt["objectives"]
-
+            # Step 1: Generate Summary Overview
             response = text_model.generate_content(prompt["strategic_prompt"])
-            strategic_overview = response.text
+            summary_overview = response.text[:300]  # Shortened initial overview
 
-            print(f"Overview: {strategic_overview}")
-            summarization_strategic_overview = strategic_overview[:300]
+            print(f"Overview: {summary_overview}")
 
-            # Step 2: Generate Phases
-            print("Phases Generating...")
-            phases_num, phases_content = self.generate_phases(mission_name, summarization_strategic_overview, text_model)
+            # Step 2: Extract Key Themes
+            print("Extracting Key Themes...")
+            key_themes = self.extract_key_themes(title, summary_overview, text_model)
+            print("Key Themes Extracted.")
 
-            print("Phases Generated")
-            phases = []
+            # Step 3: Identify Important Insights
+            print("Identifying Important Insights...")
+            insights = self.extract_insights(title, summary_overview, text_model)
+            print("Insights Identified.")
 
-            #for i in range(phases_num):
-            for i in range(1):
+            # Step 4: Determine Actionable Takeaways
+            print("Generating Actionable Takeaways...")
+            takeaways = self.extract_takeaways(title, summary_overview, text_model)
+            print("Takeaways Generated.")
 
-                print(f"Objectives in Phase {i} Generating...")
-                time.sleep(5)
-                phase = phases_content[i]
-                objectives = self.generate_objectives(mission_name, phase, objectives, text_model)
+            # Step 5: Gather Supporting Evidence (Optional)
+            print("Extracting Supporting Evidence...")
+            supporting_evidence = self.extract_evidence(title, summary_overview, text_model)
+            print("Supporting Evidence Extracted.")
 
-                print(f"Objectives in Phase {i} Generated")
-
-                print(f"Resources in Phase {i} Generating...")
-                time.sleep(5)
-                resources = self.generate_resources(mission_name, phase, text_model)
-                print(f"Resources in Phase {i} Generated...")
-
-
-                phase_data = {
-                    "phase": phases_content[i],
-                    "objectives": objectives,
-                    "resources": resources
-                }
-
-                phases.append(phase_data)
-
-            # Objectives per phase & resources per objective in phase!
-
-            plan_content = {
-                "mission_overview": strategic_overview,
-                "phases": phases
+            # Organize into structured output
+            summary_content = {
+                "overview": summary_overview,
+                "key_themes": key_themes,
+                "important_insights": insights,
+                "actionable_takeaways": takeaways,
+                "supporting_evidence": supporting_evidence
             }
-            self.generate_pdf(mission_name, plan_content)
 
-    def generate_phases(self, mission_name, strategic_overview, text_model):
+            # Generate final summary PDF
+            self.generate_pdf(title, summary_content)
+
+    def extract_key_themes(self, title, summary_overview, text_model):
         prompt = f"""
-            This is mission: {mission_name}
-            This is strategic overview: {strategic_overview}
-            
-            Include a timeline and brief description for each phase.
-            Phases should cover all stages of the mission, from preparation to completion.
+            This is a summary of a document related to {title}:
+            "{summary_overview}"
+
+            Identify the key themes or topics discussed in the document.
+            Return a list of main themes without excessive details.
         """
 
         response = text_model.generate_content(prompt)
-        # Parse and structure the response (you may need additional parsing logic here)
-        return self.parse_phases(response.text)
+        return self.parse_list(response.text)  # Convert to structured list
 
-    def generate_objectives(self, mission_name, phase, objectives, text_model):
+    def extract_insights(self, title, summary_overview, text_model):
         prompt = f"""
-            For the mission '{mission_name}' with main objectives '{objectives}', 
-            during the phase '{phase}',
+            This is a summary of a document related to {title}:
+            "{summary_overview}"
 
-            Generate detailed and specific objectives. 
-            Each objective should include a short title, followed by 5 detailed sub-points explaining the objective.
-
-            Format them like this:
-            1. Objective Title
-               - Sub-point 1
-               - Sub-point 2
-               - Sub-point 3
-               - Sub-point 4
-               - Sub-point 5
+            Extract the most important insights from the document.
+            Focus on key learnings, statistics, or conclusions.
         """
 
         response = text_model.generate_content(prompt)
+        return self.parse_list(response.text)  # Convert to structured list
 
-        # Debugging: Print AI Response
-        print("AI Response:\n", response.text)
-
-        objectives_text = response.text.strip()
-
-        if not objectives_text:
-            return []  # Return empty list if AI fails to generate content
-
-        objectives_list = []
-        current_objective = None
-
-        # Split response into lines and process each line
-        for line in objectives_text.split("\n"):
-            line = line.strip()
-            if not line:
-                continue  # Skip empty lines
-
-            # Detect numbered objectives in both formats
-            match = re.match(r"\*\*(\d+)\.\s(.+?)\*\*|(\d+)\.\s\*\*(.+?)\*\*", line)
-            if match:
-                # If an objective is found, save the previous one
-                if current_objective:
-                    objectives_list.append(current_objective)
-
-                # Capture the objective name based on the match
-                objective_name = match.group(2) or match.group(4)
-
-                current_objective = {
-                    "objective": objective_name.strip(),
-                    "sub_points": []
-                }
-            elif line.startswith("-") and current_objective:  # Detect sub-points
-                sub_point = line.lstrip("-").strip()
-                current_objective["sub_points"].append(sub_point)
-
-        # Add the last objective if it's valid
-        if current_objective:
-            objectives_list.append(current_objective)
-
-        return objectives_list
-
-    def generate_resources(self, mission_name, phase, text_model):
+    def extract_takeaways(self, title, summary_overview, text_model):
         prompt = f"""
-            For the mission '{mission_name}', in the phase '{phase}'.',
+            This is a summary of a document related to {title}:
+            "{summary_overview}"
 
-            Generate a structured list of all required resources.  
-            Include key resource categories such as **Hardware, Personnel, Equipment, Money, Minerals, etc.**  
-            Provide a brief description for each resource, explaining its role in the mission.
-
-            Format them like this:
-            **Category Name**
-            - Resource 1: Description
-            - Resource 2: Description
+            Provide the most actionable takeaways from the document.
+            These should be recommendations or practical applications.
         """
 
         response = text_model.generate_content(prompt)
+        return self.parse_list(response.text)  # Convert to structured list
 
-        # Debugging: Print AI Response to verify formatting
-        print("AI Response:\n", response.text)
+    def extract_evidence(self, title, summary_overview, text_model):
+        prompt = f"""
+            This is a summary of a document related to {title}:
+            "{summary_overview}"
 
-        resources_text = response.text.strip()
+            Identify any supporting evidence or references mentioned in the document.
+            This can include key statistics, studies, quotes, or expert opinions.
+        """
 
-        if not resources_text:
-            return {}  # Return empty dict if AI fails to generate content
+        response = text_model.generate_content(prompt)
+        return self.parse_list(response.text)  # Convert to structured list
 
-        structured_resources = {}
-        current_category = None
+    def parse_list(self, text):
+        # Splitting into list format (Assuming AI returns comma or newline-separated values)
+        items = [line.strip("-• ") for line in text.split("\n") if line.strip()]
+        return items
 
-        for line in resources_text.split("\n"):
-            line = line.strip()
-            if not line:
-                continue  # Skip empty lines
-
-            # Detect category (e.g., "**Hardware**")
-            category_match = re.match(r"\*\*(.+?)\*\*", line)
-            if category_match:
-                current_category = category_match.group(1).strip()
-                structured_resources[current_category] = []
-            elif line.startswith("-") and current_category:  # Detect resource items
-                parts = line.lstrip("-").split(":", 1)
-                resource_name = parts[0].strip()
-                description = parts[1].strip() if len(parts) > 1 else "No description provided."
-                structured_resources[current_category].append({"name": resource_name, "description": description})
-
-        return structured_resources
-
-    def parse_phases(self, phases_text):
-        # Parse the text response into a structured format (you can customize this as needed)
-        phases_num = 0
-        phases = []
-        for line in phases_text.split("\n"):
-            if line.strip():
-                parts = line.split(":")
-                if len(parts) == 2:
-                    phases_num = phases_num + 1
-                    phase_title, phase_details = parts
-                    phases.append({phase_title.strip() + phase_details.strip()})
-        return phases_num, phases
-
-
-    def generate_pdf(self, mission_name, plan_content):
+    def generate_pdf(self, title, summary_content):
         pdf = FPDF("P", "mm", "A4")
         pdf.set_margins(20, 20, 20)
-        pdf.set_auto_page_break(auto=True, margin=20)  # Automatic page breaks
+        pdf.set_auto_page_break(auto=True, margin=20)
 
         # Title Page
         pdf.add_page()
-        pdf.set_font("Arial", style="B",size=36)
-        pdf.cell(0, 20, f"Mission Plan: {mission_name}", 0, 1, "C")
+        pdf.set_font("Arial", style="B", size=36)
+        pdf.cell(0, 20, f"Summary Report: {title}", 0, 1, "C")
         pdf.set_font("Arial", size=16)
-        pdf.cell(0, 10, "Generated by Gemini", 0, 1, "C") # Add a small note
-        pdf.ln(20) # Add more space before the overview
+        pdf.cell(0, 10, "Generated by AI", 0, 1, "C")
+        pdf.ln(20)
 
-        # Mission Overview
+        # Overview
         pdf.set_font("Arial", style="B", size=20)
-        pdf.cell(0, 15, "Mission Overview", 0, 1)
+        pdf.cell(0, 15, "Overview", 0, 1)
         pdf.set_font("Arial", size=14)
-        pdf.multi_cell(0, 10, plan_content.get("mission_overview", "No overview provided."))
-        pdf.add_page()
+        pdf.multi_cell(0, 10, summary_content.get("overview", "No overview available."))
+        pdf.ln(10)
 
-        for i, phase in enumerate(plan_content["phases"], start=1):
-            pdf.set_font("Arial", style="B", size=24)
-            pdf.multi_cell(0, 10, f"Phase {i}: {phase['phase']}")
-
-        pdf.add_page()
-        pdf.ln(15)
-
-        # Phases
-        for i, phase in enumerate(plan_content["phases"]):
-            pdf.set_font("Arial", style="B", size=24)
-            pdf.cell(0, 15, f"Phase {i+1}: {phase['phase']}", 0, 1)
+        # Key Themes
+        if summary_content.get("key_themes"):
+            pdf.set_font("Arial", style="B", size=20)
+            pdf.cell(0, 15, "Key Themes", 0, 1)
+            pdf.set_font("Arial", size=14)
+            for theme in summary_content["key_themes"]:
+                pdf.multi_cell(0, 10, f"- {theme}")
             pdf.ln(10)
 
-            # Objectives
-            for j, objective_data in enumerate(phase["objectives"]):
-                pdf.set_font("Arial",style="B", size=18)
-                pdf.cell(0, 12, f"{j+1}. {objective_data['objective']}", 0, 1)
-                pdf.set_font("Arial", size=14)
-                for sub_point in objective_data['sub_points']:
-                    pdf.multi_cell(0, 8, "- " + sub_point, 0, 1)  # Increased indent
-                pdf.ln(8)
-
-            # Resources
-            pdf.set_font("Arial", style="B", size=18)
-            pdf.cell(0, 12, "Resources", 0, 1)
+        # Important Insights
+        if summary_content.get("important_insights"):
+            pdf.set_font("Arial", style="B", size=20)
+            pdf.cell(0, 15, "Important Insights", 0, 1)
             pdf.set_font("Arial", size=14)
+            for insight in summary_content["important_insights"]:
+                pdf.multi_cell(0, 10, f"- {insight}")
+            pdf.ln(10)
 
-            for category, items in phase["resources"].items():
-                pdf.set_font("Arial", style="B", size=14)
-                pdf.cell(0, 10, category, 0, 1)
-                pdf.set_font("Arial", size=14) # Consistent font size
-                for item in items:
-                    pdf.multi_cell(0, 8, "- " + item['name'] + ": " + item['description'], 0, 1) # Increased indent
-                pdf.ln(5)
+        # Actionable Takeaways
+        if summary_content.get("actionable_takeaways"):
+            pdf.set_font("Arial", style="B", size=20)
+            pdf.cell(0, 15, "Actionable Takeaways", 0, 1)
+            pdf.set_font("Arial", size=14)
+            for takeaway in summary_content["actionable_takeaways"]:
+                pdf.multi_cell(0, 10, f"- {takeaway}")
+            pdf.ln(10)
 
-            if i < len(plan_content["phases"]) - 1: # Add page break between phases if not the last phase
-                pdf.add_page()
+        # Supporting Evidence
+        if summary_content.get("supporting_evidence"):
+            pdf.set_font("Arial", style="B", size=20)
+            pdf.cell(0, 15, "Supporting Evidence", 0, 1)
+            pdf.set_font("Arial", size=14)
+            for evidence in summary_content["supporting_evidence"]:
+                pdf.multi_cell(0, 10, f"- {evidence}")
+            pdf.ln(10)
 
-
-        file_name = f"{mission_name.replace(' ', '_')}.pdf"
+        # Save PDF
+        file_name = f"{title.replace(' ', '_')}.pdf"
         file_path = os.path.join("pdfs", file_name)
         os.makedirs("pdfs", exist_ok=True)
         pdf.output(file_path)
-        return {"message": "PDF generated", "file_path": file_path}
+
+        return FileResponse(file_path, media_type="application/pdf", filename=file_name)
 
 

@@ -25,7 +25,7 @@ async def generateDoc(title, objective, strategic_prompt):
 
     prompts = [
         {
-            "mission_name": title,
+            "title": title,
             "objectives": objective,
             "strategic_prompt": strategic_prompt,
         }
@@ -36,12 +36,16 @@ async def generateDoc(title, objective, strategic_prompt):
     return doc
 
 @app.get("/generateSummarization")
-async def generateDocSummary():
+async def generateDocSummary(title, objective, strategic_prompt):
+
+
+    prompts = [
+        {
+            "title": title,
+            "strategic_prompt": strategic_prompt,
+        }
+    ]
 
     sd = SummaryDocumentGenerator()
-    doc = sd.generate_summary()
+    doc = sd.generate_summary(prompts)
     return doc
-
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
