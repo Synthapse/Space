@@ -36,7 +36,7 @@ async def generateDoc(title, objective, strategic_prompt):
     return doc
 
 @app.get("/generateSummarization")
-async def generateDocSummary(title, objective, strategic_prompt):
+async def generateDocSummary(title, strategic_prompt):
 
 
     prompts = [
