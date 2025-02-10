@@ -125,7 +125,7 @@ class GenericDocumentGenerator:
             if not line:
                 continue  # Skip empty lines
 
-            # Detect numbered objectives in both formats
+
             match = re.match(r"\*\*(\d+)\.\s(.+?)\*\*|(\d+)\.\s\*\*(.+?)\*\*", line)
             if match:
                 # If an objective is found, save the previous one
