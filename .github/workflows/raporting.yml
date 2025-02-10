@@ -9,7 +9,7 @@ on:
 env:
   PROJECT_ID: voicesense
   GAR_LOCATION: europe-central2
-  SERVICE: voicesense
+  SERVICE: raporting
   REGION: europe-central2
 
 jobs:
