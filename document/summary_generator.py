@@ -14,7 +14,7 @@ app = FastAPI()
 # 1 million TPM (tokens per minute)
 # 1.5K RPD (requests per day)
 
-class DocumentGenerator:
+class SummaryDocumentGenerator:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -35,8 +35,8 @@ class DocumentGenerator:
         for prompt in prompts:
             strategic_overview_prompt = f"""
                     Generate a high-level overview and strategic preplan for the space mission with the following details:
-                    Mission Name: {prompt.mission_name}
-                    Objectives: {prompt.objectives}
+                    Mission Name: {prompt['mission_name']}
+                    Objectives: {prompt['objectives']}
     
                     The overview should provide a cohesive, strategic narrative that includes:
                     - A summary of the mission's overarching goals and purpose.
@@ -52,7 +52,7 @@ class DocumentGenerator:
 
         return prompts
 
-    def generate_plan(self, doc_prompts):
+    def generate_summary(self, doc_prompts):
 
         text_model, image_model = self.configure_model()
         for prompt in doc_prompts:
@@ -83,25 +83,16 @@ class DocumentGenerator:
 
                 print(f"Objectives in Phase {i} Generated")
 
-                phase_objectives = []
+                print(f"Resources in Phase {i} Generating...")
+                time.sleep(5)
+                resources = self.generate_resources(mission_name, phase, text_model)
+                print(f"Resources in Phase {i} Generated...")
 
-                for objective in objectives:
-                    resources = []
-
-                    print(f"Resources in Objective {objective} in Phase {i} Generating...")
-                    time.sleep(5)
-                    resource = self.generate_resources(mission_name, phase, objective, text_model)
-                    print(f"Resources in Objective {objective} in Phase {i} Generated...")
-                    resources.append(resource)
-
-                    phase_objectives.append({
-                        "objective": objective,
-                        "resources": resources
-                    })
 
                 phase_data = {
                     "phase": phases_content[i],
-                    "objectives": phase_objectives
+                    "objectives": objectives,
+                    "resources": resources
                 }
 
                 phases.append(phase_data)
@@ -127,21 +118,21 @@ class DocumentGenerator:
         # Parse and structure the response (you may need additional parsing logic here)
         return self.parse_phases(response.text)
 
-    import re
-
     def generate_objectives(self, mission_name, phase, objectives, text_model):
         prompt = f"""
             For the mission '{mission_name}' with main objectives '{objectives}', 
             during the phase '{phase}',
 
             Generate detailed and specific objectives. 
-            Each objective should include a short title, followed by 2-4 detailed sub-points explaining the objective.
+            Each objective should include a short title, followed by 5 detailed sub-points explaining the objective.
 
             Format them like this:
             1. Objective Title
                - Sub-point 1
                - Sub-point 2
                - Sub-point 3
+               - Sub-point 4
+               - Sub-point 5
         """
 
         response = text_model.generate_content(prompt)
@@ -157,35 +148,39 @@ class DocumentGenerator:
         objectives_list = []
         current_objective = None
 
+        # Split response into lines and process each line
         for line in objectives_text.split("\n"):
             line = line.strip()
             if not line:
                 continue  # Skip empty lines
 
-            # Detect numbered objectives (e.g., "**1. Objective Name**")
-            match = re.match(r"\*\*(\d+)\.\s(.+?)\*\*", line)
+            # Detect numbered objectives in both formats
+            match = re.match(r"\*\*(\d+)\.\s(.+?)\*\*|(\d+)\.\s\*\*(.+?)\*\*", line)
             if match:
+                # If an objective is found, save the previous one
                 if current_objective:
-                    objectives_list.append(current_objective)  # Save previous objective
+                    objectives_list.append(current_objective)
+
+                # Capture the objective name based on the match
+                objective_name = match.group(2) or match.group(4)
 
                 current_objective = {
-                    "objective": match.group(2).strip(),  # Extract objective name
+                    "objective": objective_name.strip(),
                     "sub_points": []
                 }
             elif line.startswith("-") and current_objective:  # Detect sub-points
-                current_objective["sub_points"].append(line.lstrip("-").strip())
+                sub_point = line.lstrip("-").strip()
+                current_objective["sub_points"].append(sub_point)
 
-        if current_objective:  # Add last objective
+        # Add the last objective if it's valid
+        if current_objective:
             objectives_list.append(current_objective)
 
         return objectives_list
 
-    import re
-    
-
-    def generate_resources(self, mission_name, phase, objective, text_model):
+    def generate_resources(self, mission_name, phase, text_model):
         prompt = f"""
-            For the mission '{mission_name}', in the phase '{phase}', for the objective '{objective}',
+            For the mission '{mission_name}', in the phase '{phase}'.',
 
             Generate a structured list of all required resources.  
             Include key resource categories such as **Hardware, Personnel, Equipment, Money, Minerals, etc.**  
@@ -243,74 +238,68 @@ class DocumentGenerator:
 
 
     def generate_pdf(self, mission_name, plan_content):
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
+        pdf = FPDF("P", "mm", "A4")
+        pdf.set_margins(20, 20, 20)
+        pdf.set_auto_page_break(auto=True, margin=20)  # Automatic page breaks
 
-        # Title
-        pdf.set_font("Arial", style="B", size=16)
-        pdf.cell(200, 10, f"Mission Plan: {mission_name}", ln=True, align='C')
-        pdf.ln(10)
+        # Title Page
+        pdf.add_page()
+        pdf.set_font("Arial", style="B",size=36)
+        pdf.cell(0, 20, f"Mission Plan: {mission_name}", 0, 1, "C")
+        pdf.set_font("Arial", size=16)
+        pdf.cell(0, 10, "Generated by Gemini", 0, 1, "C") # Add a small note
+        pdf.ln(20) # Add more space before the overview
 
         # Mission Overview
-        pdf.set_font("Arial", style="B", size=14)
-        pdf.cell(0, 10, 'Mission Overview', ln=True)
-        pdf.set_font("Arial", size=12)
+        pdf.set_font("Arial", style="B", size=20)
+        pdf.cell(0, 15, "Mission Overview", 0, 1)
+        pdf.set_font("Arial", size=14)
         pdf.multi_cell(0, 10, plan_content.get("mission_overview", "No overview provided."))
-        pdf.ln(5)
-
-        # Phases Section
-        pdf.set_font("Arial", style="B", size=14)
-        pdf.cell(0, 10, 'Phases', ln=True)
-        pdf.ln(5)
+        pdf.add_page()
 
         for i, phase in enumerate(plan_content["phases"], start=1):
             pdf.set_font("Arial", style="B", size=24)
             pdf.multi_cell(0, 10, f"Phase {i}: {phase['phase']}")
 
-        pdf.set_font("Arial", size=12)
-        for i, phase in enumerate(plan_content["phases"], start=1):
+        pdf.add_page()
+        pdf.ln(15)
+
+        # Phases
+        for i, phase in enumerate(plan_content["phases"]):
             pdf.set_font("Arial", style="B", size=24)
-            pdf.multi_cell(0, 10, f"Phase {i}: {phase['phase']}")
-            pdf.ln(3)
+            pdf.cell(0, 15, f"Phase {i+1}: {phase['phase']}", 0, 1)
+            pdf.ln(10)
 
-            pdf.cell(0, 10, 'Objectives', ln=True)
-            pdf.set_font("Arial", size=12)
-            for j, objective_data in enumerate(phase["objectives"], start=1):
-                pdf.multi_cell(0, 8, f"{j}. {objective_data['objective']}")
-                pdf.ln(2)  # Space between objectives
+            # Objectives
+            for j, objective_data in enumerate(phase["objectives"]):
+                pdf.set_font("Arial",style="B", size=18)
+                pdf.cell(0, 12, f"{j+1}. {objective_data['objective']}", 0, 1)
+                pdf.set_font("Arial", size=14)
+                for sub_point in objective_data['sub_points']:
+                    pdf.multi_cell(0, 8, "- " + sub_point, 0, 1)  # Increased indent
+                pdf.ln(8)
 
-                # Print sub-points under each objective
-                for sub_point in objective_data.get("sub_points", []):
-                    pdf.multi_cell(0, 8, f"   - {sub_point}")  # Indented sub-points
-                pdf.ln(3)  # Extra spacing after sub-points
+            # Resources
+            pdf.set_font("Arial", style="B", size=18)
+            pdf.cell(0, 12, "Resources", 0, 1)
+            pdf.set_font("Arial", size=14)
 
-            pdf.set_font("Arial", size=12)
-            for j, objective_data in enumerate(phase["objectives"], start=1):
-                pdf.set_font("Arial", style="B", size=18)
-                pdf.multi_cell(0, 10, f"Objective {j}: {objective_data['objective']}")
-                pdf.ln(2)
-
-                # Format lists properly
+            for category, items in phase["resources"].items():
                 pdf.set_font("Arial", style="B", size=14)
-                pdf.multi_cell(0, 10, "Resources:")  # Category title
-                pdf.ln(1)
+                pdf.cell(0, 10, category, 0, 1)
+                pdf.set_font("Arial", size=14) # Consistent font size
+                for item in items:
+                    pdf.multi_cell(0, 8, "- " + item['name'] + ": " + item['description'], 0, 1) # Increased indent
+                pdf.ln(5)
 
-                pdf.set_font("Arial", size=12)  # Regular font for list items
-                for resource in objective_data["resources"]:
-                    pdf.multi_cell(0, 8, f" - {resource}")  # Bullet point
-                pdf.ln(4)  # Extra spacing after list
+            if i < len(plan_content["phases"]) - 1: # Add page break between phases if not the last phase
+                pdf.add_page()
 
-        # Generate unique file name
+
         file_name = f"{mission_name.replace(' ', '_')}.pdf"
         file_path = os.path.join("pdfs", file_name)
-
-        # Create the pdfs directory if it doesn't exist
         os.makedirs("pdfs", exist_ok=True)
-
-        # Output the PDF
         pdf.output(file_path)
-
-        return {"message": "Mission plan PDF generated successfully", "file_path": file_path}
+        return {"message": "PDF generated", "file_path": file_path}
 
 

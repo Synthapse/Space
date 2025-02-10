@@ -3,4 +3,5 @@ fastapi
 google-generativeai
 markdown2
 jinja2
+fpdf
 uvicorn
