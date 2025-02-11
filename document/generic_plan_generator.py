@@ -45,8 +45,7 @@ class GenericDocumentGenerator:
             print("Phases Generated")
             phases = []
 
-            #for i in range(phases_num):
-            for i in range(1):
+            for i in range(phases_num):
 
                 print(f"Objectives in Phase {i} Generating...")
                 time.sleep(5)

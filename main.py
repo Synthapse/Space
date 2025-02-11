@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from fastapi.responses import FileResponse
 import time
 
 from document.generic_plan_generator import GenericDocumentGenerator
@@ -58,7 +59,8 @@ async def generateDoc(title, objective, strategic_prompt):
 
     c = GenericDocumentGenerator()
     doc = c.generate_plan(prompts)
-    return FileResponse(doc, media_type="application/pdf", filename="{title}.pdf")
+    return doc
+    #return FileResponse(doc, media_type="application/pdf", filename="{title}.pdf")
 
 @app.get("/generateSummarization")
 async def generateDocSummary(title, strategic_prompt):
