@@ -1,9 +1,11 @@
 
 # Raporting API
 
-# -> Generate Specification based on prompts
-# -> Generate Summariztion of something based on prompts
+-> Generate Specification based on prompts
+-> Generate Summariztion of something based on prompts
 
+
+uvicorn main:app --reload
 
 # CI/CD
 

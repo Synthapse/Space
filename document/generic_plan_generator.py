@@ -5,13 +5,15 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Frame
 from reportlab.lib.units import inch
+from reportlab.platypus import PageTemplate
 
 from fastapi.responses import FileResponse
 import time
 import os
 import re
+from datetime import datetime
 
 app = FastAPI()
 
@@ -26,6 +28,8 @@ class GenericDocumentGenerator:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.gemini_api_key = "AIzaSyCOOnCXXPIaG1mJ0TLjgoZHQt7JZ4y-gn0"
+        self.styles = getSampleStyleSheet()
+        self._add_custom_styles()
 
     def configure_model(self):
         genai.configure(api_key=self.gemini_api_key)
@@ -52,27 +56,29 @@ class GenericDocumentGenerator:
             print("Phases Generated")
             phases = []
 
-            for i in range(phases_num):
+            if len(phases_content) > 0:
+                for i in range(1):
+                #for i in range(phases_num):
 
-                print(f"Objectives in Phase {i} Generating...")
-                time.sleep(5)
-                phase = phases_content[i]
-                objectives = self.generate_objectives(title, phase, objectives, text_model)
+                    print(f"Objectives in Phase {i} Generating...")
+                    time.sleep(5)
+                    phase = phases_content[i]
+                    objectives = self.generate_objectives(title, phase, objectives, text_model)
 
-                print(f"Objectives in Phase {i} Generated")
-                print(f"Resources in Phase {i} Generating...")
-                time.sleep(5)
-                resources = self.generate_resources(title, phase, text_model)
-                print(f"Resources in Phase {i} Generated...")
+                    print(f"Objectives in Phase {i} Generated")
+                    print(f"Resources in Phase {i} Generating...")
+                    time.sleep(5)
+                    resources = self.generate_resources(title, phase, text_model)
+                    print(f"Resources in Phase {i} Generated...")
 
 
-                phase_data = {
-                    "phase": phases_content[i],
-                    "objectives": objectives,
-                    "resources": resources
-                }
+                    phase_data = {
+                        "phase": phases_content[i],
+                        "objectives": objectives,
+                        "resources": resources
+                    }
 
-                phases.append(phase_data)
+                    phases.append(phase_data)
 
             # Objectives per phase & resources per objective in phase!
 
@@ -88,7 +94,7 @@ class GenericDocumentGenerator:
             This is title: {title}
             This is strategic overview: {strategic_overview}
             
-            Include a timeline and brief description for each phase.
+            Include a timeline and brief description for each phase. This should contains 3-5 phases.
             Phases should cover all stages of the project, from preparation to completion.
         """
 
@@ -214,80 +220,196 @@ class GenericDocumentGenerator:
                     phases.append({phase_title.strip() + phase_details.strip()})
         return phases_num, phases
 
+    def _add_custom_styles(self):
+        # Adding custom styles to enhance aesthetics
+        self.styles.add(ParagraphStyle(name="CHeading1", fontSize=40, alignment=1, textColor=colors.darkblue, fontName="Helvetica-Bold", leading=48))
+        self.styles.add(ParagraphStyle(name="CHeading2", fontSize=20, alignment=0, textColor=colors.navy, fontName="Helvetica-Bold", leading=24))
+        self.styles.add(ParagraphStyle(name="CHighNormal", fontSize=16, alignment=0, textColor=colors.black, fontName="Helvetica", spaceAfter=16))
+        self.styles.add(ParagraphStyle(name="CNormal", fontSize=12, alignment=0, textColor=colors.gray, fontName="Helvetica", spaceAfter=12))
+        self.styles.add(ParagraphStyle(name="CSubtitle", fontSize=14, alignment=1, textColor=colors.gray, fontName="Helvetica-Oblique"))
+        self.styles.add(ParagraphStyle(name="CListItem", fontSize=12, bulletFontName="Helvetica", bulletFontSize=12, leftIndent=20, spaceAfter=6))
 
     def generate_pdf(self, title, plan_content):
-            # Set up the PDF document
-            file_name = f"{title.replace(' ', '_')}.pdf"
-            file_path = os.path.join("pdfs", file_name)
-            os.makedirs("pdfs", exist_ok=True)
-            
-            document = SimpleDocTemplate(file_path, pagesize=A4)
-            elements = []
-            styles = getSampleStyleSheet()
+        # Set up the PDF document
+        file_name = f"{title.replace(' ', '_')}.pdf"
+        file_path = os.path.join("pdfs", file_name)
+        os.makedirs("pdfs", exist_ok=True)
+        
+        document = SimpleDocTemplate(file_path, pagesize=A4)
+        document.title = title
 
-            # Title Page
-            title_style = styles["Title"]
-            title_style.fontSize = 36
-            title_para = Paragraph(title, title_style)
-            elements.append(title_para)
-            elements.append(Spacer(1, 12))  # Space between title and subtitle
+        width, height = A4
+        frame = Frame(0, 0, width, height - 100, id='normal')  # Leave space for the title page
 
-            subtitle_style = styles["Normal"]
-            subtitle_style.fontSize = 16
-            subtitle_para = Paragraph("Generated by Gemini", subtitle_style)
-            elements.append(subtitle_para)
-            elements.append(Spacer(1, 20))  # Space before next section
+        # Create the custom page template with navy background on the first page
+        custom_page_template = PageTemplate(id='title', onPage=self.add_title_page, frames=[frame])
+        document.addPageTemplates([custom_page_template])
+        elements = []
 
-            # Mission Overview
-            mission_style = styles["Normal"]
-            mission_style.fontSize = 14
-            mission_overview = plan_content.get("mission_overview", "No overview provided.")
-            mission_para = Paragraph(f"<b>Mission Overview:</b> {mission_overview}", mission_style)
-            elements.append(mission_para)
-            elements.append(Spacer(1, 20))
+        elements.append(PageBreak())
+        # Mission Overview
+        self.parse_and_add_content(elements, plan_content["mission_overview"])
+        # Phases
+        self.add_phases(elements, plan_content)
+        # Build PDF
+        document.build(elements)
 
-            # Phases
-            for i, phase in enumerate(plan_content["phases"], start=1):
-                phase_title_style = styles["Heading2"]
-                phase_title = Paragraph(f"<b>Phase {i}: {phase['phase']}</b>", phase_title_style)
-                elements.append(phase_title)
+        return FileResponse(file_path, media_type="application/pdf", filename=file_name)
+
+    def add_title_page(self, canvas, doc):
+        # Get page dimensions
+        width, height = A4
+        
+        # Set navy blue background
+        canvas.setFillColor(colors.navy)
+        canvas.rect(0, 0, width, height, fill=True, stroke=False)
+
+        # Set text properties
+        canvas.setFillColor(colors.white)  # White text for contrast
+        canvas.setFont("Helvetica-Bold", 24)
+
+        # Add Title (Centered at the top)
+        title = doc.title
+        canvas.drawCentredString(width / 2, height - 100, title)
+
+        # Add Date (Below title)
+        canvas.setFont("Helvetica", 14)
+        current_date = datetime.now().strftime("%B %d, %Y")  # Format: February 11, 2025
+        canvas.drawCentredString(width / 2, height - 140, f"Date: {current_date}")
+
+        # Add Generation Info (Below date)
+        canvas.setFont("Helvetica-Oblique", 12)
+        canvas.drawCentredString(width / 2, height - 170, "Generated by Authentic Scope / Gemini")
+
+
+    ## 11.02.2025 -> It's depends on the "*" sugn
+    def parse_and_add_content(self, elements, content):
+        # Get the standard styles
+        styles = getSampleStyleSheet()
+        normal_style = self.styles["CNormal"]
+        bold_style = self.styles["CHeading2"]
+        bullet_style = self.styles["CListItem"]
+        
+        # Split the content into lines (assuming paragraphs are separated by newlines)
+        lines = content.split('\n')
+        
+        # Process each line
+        for i, line in enumerate(lines):
+            # Make the first line in the section a header (if not already bolded)
+            if i == 0:
+                header_paragraph = Paragraph(f"<b>{line.strip()}</b>", bold_style)
+                elements.append(header_paragraph)
                 elements.append(Spacer(1, 12))
-
-                # Objectives
-                for j, objective_data in enumerate(phase["objectives"]):
-                    objective_style = styles["Normal"]
-                    objective_title = Paragraph(f"<b>{j+1}. {objective_data['objective']}</b>", objective_style)
-                    elements.append(objective_title)
-                    elements.append(Spacer(1, 6))
-                    
-                    for sub_point in objective_data['sub_points']:
-                        sub_point_style = styles["Normal"]
-                        sub_point_para = Paragraph(f"- {sub_point}", sub_point_style)
-                        elements.append(sub_point_para)
-                        elements.append(Spacer(1, 6))
-
-                # Resources
-                resources_title_style = styles["Heading3"]
-                resources_title = Paragraph("<b>Resources</b>", resources_title_style)
-                elements.append(resources_title)
+                continue
+            
+            # Check if it's a bullet point (starts with '*')
+            if line.strip().startswith('*'):
+                # Remove the '*' and any extra spaces
+                bullet_point = line.strip()[1:].strip()
+                
+                # Bold the text before the colon
+                bullet_point = re.sub(r'^(.*?)(:)', r'<b>\1</b>\2', bullet_point)
+                
+                bullet_paragraph = Paragraph(f"• {bullet_point}", bullet_style)
+                elements.append(bullet_paragraph)
+                elements.append(Spacer(1, 6))
+            
+            # Check if it has bold text (surrounded by '**')
+            elif '**' in line:
+                # Replace '**' with <b> for HTML-like formatting
+                formatted_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', line)
+                bold_paragraph = Paragraph(formatted_text, bold_style)
+                elements.append(bold_paragraph)
+                elements.append(Spacer(1, 6))
+            
+            # If it's normal text (neither bold nor a bullet point)
+            else:
+                formatted_text = line.strip()
+                normal_paragraph = Paragraph(formatted_text, normal_style)
+                elements.append(normal_paragraph)
                 elements.append(Spacer(1, 6))
 
-                for category, items in phase["resources"].items():
-                    resources_category_style = styles["Normal"]
-                    category_title = Paragraph(f"<b>{category}:</b>", resources_category_style)
-                    elements.append(category_title)
-                    elements.append(Spacer(1, 6))
-                    
-                    for item in items:
-                        resource_item_style = styles["Normal"]
-                        resource_item = Paragraph(f"- {item['name']}: {item['description']}", resource_item_style)
-                        elements.append(resource_item)
-                        elements.append(Spacer(1, 6))
+        elements.append(PageBreak())  # Optionally, you can add a page break after content
 
-                if i < len(plan_content["phases"]) - 1:  # Add page break between phases if not the last phase
-                    elements.append(PageBreak())
 
-            # Build PDF
-            document.build(elements)
+    def parse_phase(self, phase_string):
+        # If phase_string is a set, extract its single value
+        if isinstance(phase_string, set):
+            if len(phase_string) == 1:  # Ensure it's not an empty or multi-value set
+                phase_string = next(iter(phase_string))  # Extract the single element
+            else:
+                raise ValueError(f"Expected a set with one element, but got: {phase_string}")
 
-            return FileResponse(file_path, media_type="application/pdf", filename=file_name)
+        if not isinstance(phase_string, str):
+            raise TypeError(f"Expected a string, but got {type(phase_string).__name__}")
+
+        # Debugging: Print the phase_string before processing
+        print(f"Parsing phase string: {phase_string}")
+
+        # Adjusted regex pattern for flexibility
+        match = re.search(r'Phase\s*\d+\s*[:-]?\s*(.*)', phase_string, re.IGNORECASE)
+
+        if match:
+            result = match.group(1).strip()  # Return the phase name without leading/trailing spaces
+            print(f"Extracted Phase Name: {result}")  # Debugging output
+            return result
+        
+        print("No match found!")  # Debugging output
+        return phase_string
+
+    def add_phases(self, elements, plan_content):
+        for i, phase in enumerate(plan_content["phases"], start=1):
+            # Phase Title
+            self.add_phase_title(elements, phase, i)
+
+            # Objectives and Sub-Points
+            self.add_objectives_and_subpoints(elements, phase)
+
+            # Resources
+            self.add_resources(elements, phase)
+
+            if i < len(plan_content["phases"]) - 1:  # Add page break between phases if not the last
+                elements.append(PageBreak())
+
+    def add_phase_title(self, elements, phase, phase_number):
+        phase_title_style = self.styles["CHeading2"]
+
+        parsed_phase = self.parse_phase(phase['phase'])
+
+        phase_title = Paragraph(f"<b>Phase {phase_number}: {parsed_phase}</b>", phase_title_style)
+        elements.append(phase_title)
+        elements.append(Spacer(1, 16))
+
+    def add_objectives_and_subpoints(self, elements, phase):
+        for j, objective_data in enumerate(phase["objectives"]):
+            objective_style = self.styles["CHighNormal"]
+            objective_title = Paragraph(f"<b>{j+1}. {objective_data['objective']}</b>", objective_style)
+            elements.append(objective_title)
+            elements.append(Spacer(1, 8))
+            
+            for sub_point in objective_data['sub_points']:
+                sub_point_style = self.styles["CNormal"]
+                sub_point_para = Paragraph(f"- {sub_point}", sub_point_style)
+                elements.append(sub_point_para)
+                elements.append(Spacer(1, 2))
+
+    def add_resources(self, elements, phase):
+        resources_title_style = self.styles["CHeading2"]
+        resources_title = Paragraph("<b>Resources</b>", resources_title_style)
+        elements.append(resources_title)
+        elements.append(Spacer(1, 16))
+
+        for category, items in phase["resources"].items():
+            self.add_resource_category(elements, category, items)
+
+    def add_resource_category(self, elements, category, items):
+        resources_category_style = self.styles["CHighNormal"]
+        category_title = Paragraph(f"<b>{category}:</b>", resources_category_style)
+        elements.append(category_title)
+        elements.append(Spacer(1, 8))
+        
+        for item in items:
+            resource_item_style = self.styles["CNormal"]
+            resource_item = Paragraph(f"- {item['name']}: {item['description']}", resource_item_style)
+            elements.append(resource_item)
+            elements.append(Spacer(1, 4))
