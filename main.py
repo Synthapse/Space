@@ -38,7 +38,7 @@ async def root():
     return {"message": "Hello World"}
 
 
-@app.get("/generateDocument")
+@app.post("/generateDocument")
 async def generateDoc(title, objective, strategic_prompt):
 
     space_prompts = [
@@ -58,7 +58,7 @@ async def generateDoc(title, objective, strategic_prompt):
 
     c = GenericDocumentGenerator()
     doc = c.generate_plan(prompts)
-    return doc
+    return FileResponse(doc, media_type="application/pdf", filename="{title}.pdf")
 
 @app.get("/generateSummarization")
 async def generateDocSummary(title, strategic_prompt):
@@ -73,4 +73,4 @@ async def generateDocSummary(title, strategic_prompt):
 
     sd = SummaryDocumentGenerator()
     doc = sd.generate_summary(prompts)
-    return doc
+    return FileResponse(doc, media_type="application/pdf", filename="{title}.pdf")
