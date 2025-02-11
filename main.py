@@ -6,7 +6,6 @@ from fastapi.responses import FileResponse
 import time
 
 from document.generic_plan_generator import GenericDocumentGenerator
-from document.space_engineering.plan_generator import DocumentGenerator
 from document.summary_generator import SummaryDocumentGenerator
 
 app = FastAPI()
