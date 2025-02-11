@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from document.generic_plan_generator import GenericDocumentGenerator
 from document.space_engineering.plan_generator import DocumentGenerator
@@ -7,6 +8,28 @@ from document.summary_generator import SummaryDocumentGenerator
 
 app = FastAPI()
 
+origins = [
+    "http://localhost",
+    "http://localhost:8000",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:8081",
+    "https://storage.googleapis.com",
+    "https://storage.googleapis.com/voicesense",
+    "https://storage.googleapis.com/voicesense/index.html"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+sessionid = os.getsid(0)
+print("Session ID: ", sessionid)
+sessionid2 = int(time.time())
 
 @app.get("/")
 async def root():
