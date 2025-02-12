@@ -38,6 +38,25 @@ async def root():
     return {"message": "Hello World"}
 
 
+
+##
+
+
+# -> Initial Requirements
+
+
+
+# -> Summarization of Something
+
+# -> Marketing strategy of Initial Requirements
+# 1. Project Overview: Title, timeline, and purpose.
+# 2. Goals & KPIs: What success looks like (and doesn’t).
+# 3. Audience Details: Personas, needs, and tone.
+# 4. Key Messaging: Your story, themes, and takeaways.
+# 5. Deliverables & Roles: Who owns what.
+# 6. Distribution Plan: Channels, tactics, and optimization.
+# 7. Sales Enablement: Tools and strategies to support your sales team.
+
 @app.post("/generateDocument")
 async def generateDoc(title, objective, strategic_prompt):
 
@@ -61,7 +80,7 @@ async def generateDoc(title, objective, strategic_prompt):
     return doc
     #return FileResponse(doc, media_type="application/pdf", filename="{title}.pdf")
 
-@app.get("/generateSummarization")
+@app.post("/generateSummarization")
 async def generateDocSummary(title, strategic_prompt):
 
 
@@ -74,4 +93,4 @@ async def generateDocSummary(title, strategic_prompt):
 
     sd = SummaryDocumentGenerator()
     doc = sd.generate_summary(prompts)
-    return FileResponse(doc, media_type="application/pdf", filename="{title}.pdf")
+    return doc

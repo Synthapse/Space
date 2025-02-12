@@ -4,8 +4,12 @@
 -> Generate Specification based on prompts
 -> Generate Summariztion of something based on prompts
 
-
 uvicorn main:app --reload
+
+# Used Across products:
+
+- [AS] - generating the specification for specific news
+- [QC] - generating summarization of the user session
 
 # CI/CD
 
