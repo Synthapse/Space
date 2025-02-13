@@ -11,6 +11,7 @@ from document.summary_generator import SummaryDocumentGenerator
 app = FastAPI()
 
 origins = [
+    "https://authenticscope.xyz",
     "http://localhost",
     "http://localhost:8000",
     "http://localhost:3000",
