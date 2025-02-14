@@ -171,7 +171,7 @@ class SummaryDocumentGenerator:
         frame = Frame(0, 0, width, height - 100, id='normal')  # Leave space for the title page
 
         # Create the custom page template
-        custom_page_template = PageTemplate(id='title', onPage=self.add_title_page frames=[frame])
+        custom_page_template = PageTemplate(id='title', onPage=self.add_title_page, frames=[frame])
         document.addPageTemplates([custom_page_template])
 
         # Create a list to hold the elements to be added to the PDF
